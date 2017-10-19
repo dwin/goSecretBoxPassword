@@ -37,7 +37,7 @@ type ScryptParams struct {
 	P int
 }
 
-// Hash takes passphrase ,masterpassphrase as strings, version indicator as int, and userparams and masterparams as ScryptParams and returns up to 190 char ciphertext string and error - ex. password.Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
+// Hash takes passphrase ,masterpassphrase as strings, version indicator as int, and userparams and masterparams as ScryptParams and returns up to 225 char ciphertext string and error - ex. password.Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
 func Hash(userpass, masterpass string, version int, userparams, masterparams ScryptParams) (pwHashOut string, err error) {
 	sbpVersion := "v1"
 	// Check for non-nil and at least min length password and masterKey
