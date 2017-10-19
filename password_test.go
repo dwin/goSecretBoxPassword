@@ -71,6 +71,14 @@ func TestGetMasterVersion(t *testing.T) {
 	}
 	fmt.Println("Master Version: ", v)
 }
+func TestGetParams(t *testing.T) {
+	user, master, err := GetParams("secBoxv1$1$5DxIID0p4uz073qNngNsxYhXKPJITbjdvpjLju/XKbbzKDjdXVvgCSVbNIjCAg2QvA8O4mC+/fZpExJJx9rVpgxeL4xH16kN5/AGHtaa3kPNlP0tB5dJjDbFsJVr7u/ar9v4hzwQYhk=$xGvsvszfJDY=$32768$16$1$16384$8$1")
+	if err != nil {
+		t.Log(err)
+		t.FailNow()
+	}
+	fmt.Printf("User Params: N-%v R-%v P-%v Master Params: N-%v R-%v P-%v\n", user.N, user.R, user.P, master.N, master.R, master.P)
+}
 func TestUpdateMaster(t *testing.T) {
 	output, err := Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
 	if err != nil {

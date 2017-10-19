@@ -82,6 +82,15 @@ func GetHashVersion(ciphertext string) (version int, err error) {
 	return
 }
 
+// GetParams takes ciphertext string, returns user and master parameters and error. This may be useful for upgrading.
+func GetParams(ciphertext string) (userParams, masterParams ScryptParams, err error) {
+	parts := strings.Split(ciphertext, "$")
+	if len(parts) == 10 && parts[0] == "secBoxv1" {
+		return getParams(parts)
+	}
+	return userParams, masterParams, fmt.Errorf("Nonmatched ciphertext version")
+}
+
 // GetMasterVersion takes ciphertext string and returns master passphrase version as int and error.
 func GetMasterVersion(ciphertext string) (version int, err error) {
 	parts := strings.Split(ciphertext, "$")
