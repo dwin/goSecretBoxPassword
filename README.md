@@ -19,16 +19,6 @@ Example Output:
 
 ## Usage
 
-Tagged Stable Version from [GoPkg](http://gopkg.in/dwin/goSecretBoxPassword.v1):
-
-```bash
-go get gopkg.in/dwin/goSecretBoxPassword.v1
-```
-
-```go
-import "gopkg.in/dwin/goSecretBoxPassword.v1"
-```
-
 Latest from Github:
 
 ```bash
