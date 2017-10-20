@@ -11,7 +11,6 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -42,10 +41,19 @@ func Hash(userpass, masterpass string, version int, userparams, masterparams Scr
 	sbpVersion := "v1"
 	// Check for non-nil and at least min length password and masterKey
 	if len(userpass) < MinLength {
-		return "", fmt.Errorf("Passphrase length must be at least %v chars", MinLength)
+		return "", ErrPassphraseLength
 	}
 	if len(masterpass) < MinLength {
-		return "", fmt.Errorf("Master passphrase length must be at least %v chars", MinLength)
+		return "", ErrPassphraseLength
+	}
+	// Validate Scrypt Parameters
+	err = validateParams(userparams)
+	if err != nil {
+		return
+	}
+	err = validateParams(masterparams)
+	if err != nil {
+		return
 	}
 
 	// 1) The plaintext password is transformed into a hash value using Blake2b-512
@@ -68,7 +76,7 @@ func Verify(userpass, masterpass, ciphertext string) error {
 	if len(parts) == 10 && parts[0] == "secBoxv1" {
 		return verifyV1(userpass, masterpass, parts)
 	}
-	return fmt.Errorf("Nonmatched ciphertext version")
+	return ErrCiphertextVer
 }
 
 // GetHashVersion takes ciphertext string and returns goSecretBoxPassword version as int and error.
@@ -88,7 +96,7 @@ func GetParams(ciphertext string) (userParams, masterParams ScryptParams, err er
 	if len(parts) == 10 && parts[0] == "secBoxv1" {
 		return getParams(parts)
 	}
-	return userParams, masterParams, fmt.Errorf("Nonmatched ciphertext version")
+	return userParams, masterParams, ErrCiphertextFormat
 }
 
 // GetMasterVersion takes ciphertext string and returns master passphrase version as int and error.
@@ -107,7 +115,7 @@ func UpdateMaster(newMaster, oldMaster string, newVersion int, ciphertext string
 	if len(parts) == 10 && parts[0] == "secBoxv1" {
 		return updateMasterV1(newMaster, oldMaster, newVersion, parts, masterparams)
 	}
-	return "", fmt.Errorf("Nonmatched ciphertext version")
+	return "", ErrCiphertextFormat
 }
 func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string, masterparams ScryptParams) (newHash string, err error) {
 	sbpVersion := "v1"
@@ -117,7 +125,7 @@ func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string,
 		return
 	}
 	if newVersion <= cVer {
-		return "", fmt.Errorf("Invalid new version. Given: %v Existing: %v", newVersion, cVer)
+		return "", ErrInvalidVersionUpdate
 	}
 	// Extract Scrypt parameters from string
 	userparams, oldMasterparams, err := getParams(parts)
@@ -145,7 +153,7 @@ func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string,
 	copy(decryptNonce[:], encrypted[:24])
 	decrypted, ok := secretbox.Open(nil, encrypted[24:], &decryptNonce, &mpScryptB2)
 	if !ok {
-		return "", errors.New("Secretbox decryption error")
+		return "", ErrSecretBoxDecryptFail
 	}
 	newEncrypted, newSalt, err := encrypt(newMaster, decrypted, masterparams)
 	if err != nil {
@@ -181,10 +189,10 @@ func encrypt(masterpass string, userpassScrypt []byte, masterparams ScryptParams
 }
 func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	if len(parts) != 10 {
-		return errors.New("Ciphertext format error")
+		return ErrCiphertextFormat
 	}
 	if parts[0] != "secBoxv1" {
-		return errors.New("Ciphertext version error")
+		return ErrCiphertextVer
 	}
 	// Extract Scrypt parameters from string
 	userparams, masterparams, err := getParams(parts)
@@ -212,7 +220,7 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	copy(decryptNonce[:], encrypted[:24])
 	decrypted, ok := secretbox.Open(nil, encrypted[24:], &decryptNonce, &mpScryptB2)
 	if !ok {
-		return errors.New("Secretbox decryption error")
+		return ErrSecretBoxDecryptFail
 	}
 
 	// Use scrypt to derive key for comparison
@@ -224,7 +232,7 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	}
 	for i := range userpassScrypt {
 		if decrypted[i] != userpassScrypt[i] {
-			return errors.New("Invalid passphrase")
+			return ErrPassphraseHashMismatch
 		}
 	}
 	return err
@@ -232,13 +240,13 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 func validateParams(p ScryptParams) error {
 	// Cost factor must be multiple of 2
 	if p.N < 4096 || p.N > 600000 {
-		return fmt.Errorf("Given %v Scrypt (N) cost factor out of acceptable range (4096-60000)", p.N)
+		return ErrScryptParamN
 	}
 	if p.R < 4 || p.R > 128 {
-		return fmt.Errorf("Given %v Scrypt (r) blockSizeFactor out of acceptable range (4-128)", p.R)
+		return ErrScryptParamR
 	}
 	if p.P < 1 || p.P > 20 {
-		return fmt.Errorf("Given %v Scrypt (p) parallelization out of acceptable range (1-20)", p.P)
+		return ErrScryptParamP
 	}
 	return nil
 }
@@ -283,7 +291,7 @@ func getParams(parts []string) (userparams, masterparams ScryptParams, err error
 	}
 	err = validateParams(userparams)
 	if err != nil {
-		return userparams, masterparams, errors.New("Unable to validate scrypt parameters in ciphertext string")
+		return
 	}
 	masterparams.N, err = strconv.Atoi(parts[7])
 	if err != nil {
@@ -299,7 +307,7 @@ func getParams(parts []string) (userparams, masterparams ScryptParams, err error
 	}
 	err = validateParams(masterparams)
 	if err != nil {
-		return userparams, masterparams, errors.New("Unable to validate scrypt parameters in ciphertext string")
+		return
 	}
 	return
 }
