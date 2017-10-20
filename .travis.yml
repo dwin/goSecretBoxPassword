@@ -1,0 +1,10 @@
+language: go
+
+os:
+  - linux
+  - osx
+
+script:
+    - go build -race -v .
+    - go test -race -v ./memcall/...
+    - go test -race -v ./
