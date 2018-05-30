@@ -1,7 +1,7 @@
 # goSecretBoxPassword
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/dwin/goSecretBoxPassword)](https://goreportcard.com/report/github.com/dwin/goSecretBoxPassword) [![GoDoc](https://godoc.org/github.com/dwin/goSecretBoxPassword?status.svg)](https://godoc.org/github.com/dwin/goSecretBoxPassword)
-[![cover.run go](https://cover.run/go/github.com/dwin/goSecretBoxPassword.svg)](https://cover.run/go/github.com/dwin/goSecretBoxPassword)
+[![cover.run](https://cover.run/go/github.com/dwin/goSecretBoxPassword.svg?style=flat&tag=golang-1.10)](https://cover.run/go?tag=golang-1.10&repo=github.com%2Fdwin%2FgoSecretBoxPassword)
 [![Build Status](https://travis-ci.org/dwin/goSecretBoxPassword.svg?branch=master)](https://travis-ci.org/dwin/goSecretBoxPassword)
 
 This is a Golang library for securing passwords it is based on the [Dropbox method for password storage](https://blogs.dropbox.com/tech/2016/09/how-dropbox-securely-stores-your-passwords/). The both passphrases are first hashed with [Blake2b-512](https://godoc.org/golang.org/x/crypto/blake2b) then a random 64-bit salt is generated and a secure hash is generated using [Scrypt](https://godoc.org/golang.org/x/crypto/scrypt) with the user specified parameters. The salt is appended to resulting 56 byte hash for a total of 64 bytes. The masterpassphrase Scrypt output, which Dropbox describes as a global pepper, is then hashed with Blake2b-256 and is used as a key along with a 192-bit random nonce value for the user passphrase Scrypt output along with Scrypt salt to be encrypted using [NaCl Secretbox](https://godoc.org/golang.org/x/crypto/nacl/secretbox). NaCl Secretbox uses XSalsa20 and Poly1305 to encrypt and authenticate data.
