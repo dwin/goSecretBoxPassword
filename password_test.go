@@ -19,7 +19,9 @@ package password
 
 import (
 	"fmt"
+	"math/rand"
 	"testing"
+	"time"
 )
 
 func TestBench(t *testing.T) {
@@ -45,23 +47,68 @@ func TestBench(t *testing.T) {
 		t.FailNow()
 	}
 }
-func TestHash(t *testing.T) {
-	output, err := Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
-	if err != nil {
-		t.Log(err)
-		t.FailNow()
-	}
-	fmt.Println("Output: " + output)
-	fmt.Printf("Length: %v\n", len(output))
 
-	err = Verify("password1234", "masterpassphrase", output)
-	if err != nil {
-		t.Log(err)
-		t.FailNow()
+var src = rand.NewSource(time.Now().UnixNano())
+
+const (
+	chars         = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$%^&*()_+<>?/,.:;[]-~`"
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+func RandStringBytesMaskImprSrc(n int) string {
+	b := make([]byte, n)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := n-1, src.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(chars) {
+			b[i] = chars[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
 	}
+
+	return string(b)
+}
+
+func TestHash(t *testing.T) {
+
+	var total int
+	runs := 52
+	// Test expect success
+	for i := 2; i < runs; i++ {
+		// Generate Test Password
+		testUserPass := RandStringBytesMaskImprSrc(i * 4)
+		testMasterPass := RandStringBytesMaskImprSrc(i * 4)
+		// Hash Password
+		output, err := Hash(testUserPass, testMasterPass, 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
+		if err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+		t.Logf("Output: " + output)
+
+		// Check Output Length
+		lgth := len(output)
+		if lgth > 225 {
+			t.Logf("Output Length over 225 chars at %v for input userpass length %v", lgth, len(testUserPass))
+		}
+		total = total + lgth
+
+		// Verify Password
+		if err := Verify(testUserPass, testMasterPass, output); err != nil {
+			t.Log(err)
+			t.FailNow()
+		}
+	}
+	fmt.Printf("Average length of %v runs: %v\n", runs, total/runs)
 
 	// Test with Bad Params
-	_, err = Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 2048, R: 16, P: 1}, DefaultParams)
+	_, err := Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 2048, R: 16, P: 1}, DefaultParams)
 	if err != ErrScryptParamN {
 		t.Log("Expected Scrypt N failure for user params")
 		t.FailNow()
