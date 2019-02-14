@@ -1,3 +1,7 @@
+# github.com/corpix/uarand v0.0.0
+github.com/corpix/uarand
+# github.com/icrowley/fake v0.0.0-20180203215853-4178557ae428
+github.com/icrowley/fake
 # golang.org/x/crypto v0.0.0-20181203042331-505ab145d0a9
 golang.org/x/crypto/blake2b
 golang.org/x/crypto/nacl/secretbox
