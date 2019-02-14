@@ -9,6 +9,7 @@ package password
 
 import (
 	"crypto/rand"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -230,11 +231,13 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	if err != nil {
 		return err
 	}
-	for i := range userpassScrypt {
-		if decrypted[i] != userpassScrypt[i] {
-			return ErrPassphraseHashMismatch
-		}
+
+	// Compare given hash input to generated hash
+	if res := subtle.ConstantTimeCompare(decrypted, userpassScrypt); res != 1 {
+		// return nil only if supplied hash and computed hash from passphrase match
+		return ErrPassphraseHashMismatch
 	}
+
 	return err
 }
 func validateParams(p ScryptParams) error {
