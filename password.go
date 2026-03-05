@@ -61,7 +61,9 @@ func Hash(userpass, masterpass string, version int, userparams, masterparams Scr
 	userPwBlake := blake2b.Sum512([]byte(userpass))
 	// 2) Blake2b hash is hashed again using Scrypt with supplied params plus random 8 byte salt, generating 56 byte output with salt appended for 64 byte total output
 	userpassScrypt, err := scryptHash(hex.EncodeToString(userPwBlake[:]), nil, userparams)
-
+	if err != nil {
+		return "", err
+	}
 	// 3) Encrypt userpass Scrypt output with secretbox XSalsa20-Poly1305 encryption-authentication method using random 24 byte nonce and masterpass Scrypt hash
 	encrypted, salt, err := encrypt(masterpass, userpassScrypt, masterparams)
 	// 4) Generate base64 of Secretbox output and salt then format output string and return
@@ -136,6 +138,9 @@ func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string,
 	// Regenerate Blake2b-256 hash (32 bytes) using masterpass for secretbox
 	//masterpassHash := blake2b.Sum256([]byte(masterpass))
 	salt, err := base64.StdEncoding.DecodeString(parts[3])
+	if err != nil {
+		return "", err
+	}
 	masterpassScrypt, err := scryptHash(oldMaster, salt, oldMasterparams)
 	if err != nil {
 		return "", err
@@ -203,6 +208,9 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	// Regenerate Blake2b-256 hash (32 bytes) using masterpass for secretbox
 	//masterpassHash := blake2b.Sum256([]byte(masterpass))
 	salt, err := base64.StdEncoding.DecodeString(parts[3])
+	if err != nil {
+		return err
+	}
 	masterpassScrypt, err := scryptHash(masterpass, salt, masterparams)
 	if err != nil {
 		return err
