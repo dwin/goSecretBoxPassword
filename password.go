@@ -38,7 +38,7 @@ type ScryptParams struct {
 }
 
 // Hash takes passphrase ,masterpassphrase as strings, version indicator as int, and userparams and masterparams as ScryptParams and returns up to 225 char ciphertext string and error - ex. password.Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
-func Hash(userpass, masterpass string, version int, userparams, masterparams ScryptParams) (pwHashOut string, err error) {
+func Hash(userpass, masterpass string, version int, userparams, masterparams ScryptParams) (string, error) {
 	sbpVersion := "v1"
 	// Check for non-nil and at least min length password and masterKey
 	if len(userpass) < MinLength {
@@ -48,27 +48,31 @@ func Hash(userpass, masterpass string, version int, userparams, masterparams Scr
 		return "", ErrPassphraseLength
 	}
 	// Validate Scrypt Parameters
-	err = validateParams(userparams)
-	if err != nil {
-		return
+	if err := validateParams(userparams); err != nil {
+		return "", err
 	}
-	err = validateParams(masterparams)
-	if err != nil {
-		return
+	if err := validateParams(masterparams); err != nil {
+		return "", err
 	}
 
 	// 1) The plaintext password is transformed into a hash value using Blake2b-512
 	userPwBlake := blake2b.Sum512([]byte(userpass))
 	// 2) Blake2b hash is hashed again using Scrypt with supplied params plus random 8 byte salt, generating 56 byte output with salt appended for 64 byte total output
 	userpassScrypt, err := scryptHash(hex.EncodeToString(userPwBlake[:]), nil, userparams)
+	if err != nil {
+		return "", err
+	}
 
 	// 3) Encrypt userpass Scrypt output with secretbox XSalsa20-Poly1305 encryption-authentication method using random 24 byte nonce and masterpass Scrypt hash
 	encrypted, salt, err := encrypt(masterpass, userpassScrypt, masterparams)
+	if err != nil {
+		return "", err
+	}
 	// 4) Generate base64 of Secretbox output and salt then format output string and return
 	ciphertext := base64.StdEncoding.EncodeToString(encrypted)
 	saltHex := base64.StdEncoding.EncodeToString(salt)
-	pwHashOut = fmt.Sprintf("secBox%s$%v$%s$%s$%v$%v$%v$%v$%v$%v", sbpVersion, version, ciphertext, saltHex, userparams.N, userparams.R, userparams.P, masterparams.N, masterparams.R, masterparams.P)
-	return pwHashOut, err
+	pwHashOut := fmt.Sprintf("secBox%s$%v$%s$%s$%v$%v$%v$%v$%v$%v", sbpVersion, version, ciphertext, saltHex, userparams.N, userparams.R, userparams.P, masterparams.N, masterparams.R, masterparams.P)
+	return pwHashOut, nil
 }
 
 // Verify takes passphrase, masterpassphrase and ciphertext as strings and returns error if verification fails, else returns nil upon success
@@ -81,49 +85,42 @@ func Verify(userpass, masterpass, ciphertext string) error {
 }
 
 // GetHashVersion takes ciphertext string and returns goSecretBoxPassword version as int and error.
-func GetHashVersion(ciphertext string) (version int, err error) {
+func GetHashVersion(ciphertext string) (int, error) {
 	parts := strings.Split(ciphertext, "$")
 	s := strings.Trim(parts[0], "secBoxv")
-	version, err = strconv.Atoi(s)
-	if err != nil {
-		return
-	}
-	return
+	return strconv.Atoi(s)
 }
 
 // GetParams takes ciphertext string, returns user and master parameters and error. This may be useful for upgrading.
-func GetParams(ciphertext string) (userParams, masterParams ScryptParams, err error) {
+func GetParams(ciphertext string) (ScryptParams, ScryptParams, error) {
 	parts := strings.Split(ciphertext, "$")
 	if len(parts) == 10 && parts[0] == "secBoxv1" {
 		return getParams(parts)
 	}
-	return userParams, masterParams, ErrCiphertextFormat
+	return ScryptParams{}, ScryptParams{}, ErrCiphertextFormat
 }
 
 // GetMasterVersion takes ciphertext string and returns master passphrase version as int and error.
-func GetMasterVersion(ciphertext string) (version int, err error) {
+func GetMasterVersion(ciphertext string) (int, error) {
 	parts := strings.Split(ciphertext, "$")
-	version, err = strconv.Atoi(parts[1])
-	if err != nil {
-		return
-	}
-	return
+	return strconv.Atoi(parts[1])
 }
 
 // UpdateMaster takes new master passphrase, old master passphrase as string, new version as int, cipertext as string, and new ScryptParams. It returns and updated hash output string and error.
-func UpdateMaster(newMaster, oldMaster string, newVersion int, ciphertext string, masterparams ScryptParams) (pwHashOut string, err error) {
+func UpdateMaster(newMaster, oldMaster string, newVersion int, ciphertext string, masterparams ScryptParams) (string, error) {
 	parts := strings.Split(ciphertext, "$")
 	if len(parts) == 10 && parts[0] == "secBoxv1" {
 		return updateMasterV1(newMaster, oldMaster, newVersion, parts, masterparams)
 	}
 	return "", ErrCiphertextFormat
 }
-func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string, masterparams ScryptParams) (newHash string, err error) {
+
+func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string, masterparams ScryptParams) (string, error) {
 	sbpVersion := "v1"
 	// Update Secretbox Masterpass version
 	cVer, err := strconv.Atoi(parts[1])
 	if err != nil {
-		return
+		return "", err
 	}
 	if newVersion <= cVer {
 		return "", ErrInvalidVersionUpdate
@@ -133,9 +130,10 @@ func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string,
 	if err != nil {
 		return "", err
 	}
-	// Regenerate Blake2b-256 hash (32 bytes) using masterpass for secretbox
-	//masterpassHash := blake2b.Sum256([]byte(masterpass))
 	salt, err := base64.StdEncoding.DecodeString(parts[3])
+	if err != nil {
+		return "", err
+	}
 	masterpassScrypt, err := scryptHash(oldMaster, salt, oldMasterparams)
 	if err != nil {
 		return "", err
@@ -158,24 +156,24 @@ func updateMasterV1(newMaster, oldMaster string, newVersion int, parts []string,
 	}
 	newEncrypted, newSalt, err := encrypt(newMaster, decrypted, masterparams)
 	if err != nil {
-		return
+		return "", err
 	}
 	// 4) Generate base64 of Secretbox output and salt then format output string and return
 	ciphertext := base64.StdEncoding.EncodeToString(newEncrypted)
 	saltHex := base64.StdEncoding.EncodeToString(newSalt)
-	newHash = fmt.Sprintf("secBox%s$%v$%s$%s$%v$%v$%v$%v$%v$%v", sbpVersion, newVersion, ciphertext, saltHex, userparams.N, userparams.R, userparams.P, masterparams.N, masterparams.R, masterparams.P)
-	return
+	return fmt.Sprintf("secBox%s$%v$%s$%s$%v$%v$%v$%v$%v$%v", sbpVersion, newVersion, ciphertext, saltHex, userparams.N, userparams.R, userparams.P, masterparams.N, masterparams.R, masterparams.P), nil
 }
-func encrypt(masterpass string, userpassScrypt []byte, masterparams ScryptParams) (secretboxOut, salt []byte, err error) {
+
+func encrypt(masterpass string, userpassScrypt []byte, masterparams ScryptParams) ([]byte, []byte, error) {
 	// Generate random salt for master passphrase Scrypt hash
-	salt = make([]byte, 8)
+	salt := make([]byte, 8)
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		panic("rand salt failure")
 	}
 	// Generate Scrypt hash of masterpassphrase
 	masterpassScrypt, err := scryptHash(masterpass, salt, masterparams)
 	if err != nil {
-		return
+		return nil, nil, err
 	}
 	// Generate random nonce for secretbox
 	var nonce [24]byte
@@ -185,10 +183,11 @@ func encrypt(masterpass string, userpassScrypt []byte, masterparams ScryptParams
 	// Create 32 byte hash of masterpass Scrypt output for Secretbox
 	mpScryptB2 := blake2b.Sum256(masterpassScrypt)
 	// Encrypt userpass output and salt using masterpass Scrypt hash as key with the result appended to the nonce.
-	secretboxOut = secretbox.Seal(nonce[:], userpassScrypt, &nonce, &mpScryptB2)
-	return
+	secretboxOut := secretbox.Seal(nonce[:], userpassScrypt, &nonce, &mpScryptB2)
+	return secretboxOut, salt, nil
 }
-func verifyV1(userpass, masterpass string, parts []string) (err error) {
+
+func verifyV1(userpass, masterpass string, parts []string) error {
 	if len(parts) != 10 {
 		return ErrCiphertextFormat
 	}
@@ -200,9 +199,10 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	if err != nil {
 		return err
 	}
-	// Regenerate Blake2b-256 hash (32 bytes) using masterpass for secretbox
-	//masterpassHash := blake2b.Sum256([]byte(masterpass))
 	salt, err := base64.StdEncoding.DecodeString(parts[3])
+	if err != nil {
+		return err
+	}
 	masterpassScrypt, err := scryptHash(masterpass, salt, masterparams)
 	if err != nil {
 		return err
@@ -227,7 +227,7 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 	// Use scrypt to derive key for comparison
 	// The plaintext password is transformed into a hash value using Blake2b-512
 	userPwBlake := blake2b.Sum512([]byte(userpass))
-	userpassScrypt, err := scryptHash(hex.EncodeToString(userPwBlake[:]), []byte(decrypted[56:]), userparams)
+	userpassScrypt, err := scryptHash(hex.EncodeToString(userPwBlake[:]), decrypted[56:], userparams)
 	if err != nil {
 		return err
 	}
@@ -238,8 +238,9 @@ func verifyV1(userpass, masterpass string, parts []string) (err error) {
 		return ErrPassphraseHashMismatch
 	}
 
-	return err
+	return nil
 }
+
 func validateParams(p ScryptParams) error {
 	// Cost factor must be multiple of 2
 	if p.N < 4096 || p.N > 600000 {
@@ -254,80 +255,70 @@ func validateParams(p ScryptParams) error {
 	return nil
 }
 
-func scryptHash(p string, salt []byte, params ScryptParams) (hash []byte, err error) {
+func scryptHash(p string, salt []byte, params ScryptParams) ([]byte, error) {
 	if salt == nil {
 		salt = make([]byte, 8)
 		if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 			panic("rand salt failure")
 		}
 	}
-	err = validateParams(params)
-	if err != nil {
+	if err := validateParams(params); err != nil {
 		return nil, err
 	}
 	// 1) The plaintext password is transformed into a hash value using Blake2b
 	hashedPass := blake2b.Sum512([]byte(p))
 
 	// 2) Blake2b hash is hashed again using scrypt with high defaults plus supplied 8 byte salt, generating 56 byte output with salt appended for 64 byte total
-	scryptHash, err := scrypt.Key([]byte(hashedPass[:]), salt, params.N, params.R, params.P, 56)
+	scryptHash, err := scrypt.Key(hashedPass[:], salt, params.N, params.R, params.P, 56)
 	if err != nil {
 		return nil, err
 	}
 	output := make([]byte, 64)
 	copy(output, scryptHash)
 	copy(output[56:], salt)
-	return output, err
+	return output, nil
 }
-func getParams(parts []string) (userparams, masterparams ScryptParams, err error) {
+
+func getParams(parts []string) (ScryptParams, ScryptParams, error) {
+	var userparams, masterparams ScryptParams
+	var err error
 	// Get Scrypt parameters
-	userparams.N, err = strconv.Atoi(parts[4])
-	if err != nil {
-		return
+	if userparams.N, err = strconv.Atoi(parts[4]); err != nil {
+		return userparams, masterparams, err
 	}
-	userparams.R, err = strconv.Atoi(parts[5])
-	if err != nil {
-		return
+	if userparams.R, err = strconv.Atoi(parts[5]); err != nil {
+		return userparams, masterparams, err
 	}
-	userparams.P, err = strconv.Atoi(parts[6])
-	if err != nil {
-		return
+	if userparams.P, err = strconv.Atoi(parts[6]); err != nil {
+		return userparams, masterparams, err
 	}
-	err = validateParams(userparams)
-	if err != nil {
-		return
+	if err = validateParams(userparams); err != nil {
+		return userparams, masterparams, err
 	}
-	masterparams.N, err = strconv.Atoi(parts[7])
-	if err != nil {
-		return
+	if masterparams.N, err = strconv.Atoi(parts[7]); err != nil {
+		return userparams, masterparams, err
 	}
-	masterparams.R, err = strconv.Atoi(parts[8])
-	if err != nil {
-		return
+	if masterparams.R, err = strconv.Atoi(parts[8]); err != nil {
+		return userparams, masterparams, err
 	}
-	masterparams.P, err = strconv.Atoi(parts[9])
-	if err != nil {
-		return
+	if masterparams.P, err = strconv.Atoi(parts[9]); err != nil {
+		return userparams, masterparams, err
 	}
-	err = validateParams(masterparams)
-	if err != nil {
-		return
+	if err = validateParams(masterparams); err != nil {
+		return userparams, masterparams, err
 	}
-	return
+	return userparams, masterparams, nil
 }
 
 // Benchmark takes ScryptParams and returns the number of seconds elapsed as a float64 and error
-func Benchmark(params ScryptParams) (seconds float64, err error) {
+func Benchmark(params ScryptParams) (float64, error) {
 	pw := "benchmarkpass"
 	mPw := "benchmarkmasterpass"
 	start := time.Now()
-	_, err = Hash(pw, mPw, 0, params, DefaultParams)
-	if err != nil {
+	if _, err := Hash(pw, mPw, 0, params, DefaultParams); err != nil {
 		return 0, err
 	}
-	t := time.Now()
-	elapsed := t.Sub(start)
-	return elapsed.Seconds(), err
-
+	return time.Since(start).Seconds(), nil
 }
 
 /*
