@@ -1,23 +1,23 @@
-/*
-	goSecretBoxPassword - Golang Password Hashing & Encryption Library
-    Copyright (C) 2017  Darwin Smith
+// goSecretBoxPassword - Golang Password Hashing & Encryption Library
+// Copyright (C) 2017  Darwin Smith
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-	along with this program.  If not, see <http://www.gnu.org/licenses/>.
-*/
 package password
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -42,7 +42,7 @@ func TestBench(t *testing.T) {
 
 	// Test Bench hash error
 	result, err := Benchmark(ScryptParams{N: 2048, R: 8, P: 1})
-	if err != ErrScryptParamN && result != 0 {
+	if !errors.Is(err, ErrScryptParamN) && result != 0 {
 		t.Log(err)
 		t.FailNow()
 	}
@@ -63,14 +63,14 @@ func TestHash(t *testing.T) {
 			t.Log(err)
 			t.FailNow()
 		}
-		t.Logf("Output: " + output)
+		t.Logf("Output: %s", output)
 
 		// Check Output Length
 		lgth := len(output)
 		if lgth > 225 {
 			t.Logf("Output Length over 225 chars at %v for input userpass length %v", lgth, len(testUserPass))
 		}
-		total = total + lgth
+		total += lgth
 
 		// Verify Password
 		if err := Verify(testUserPass, testMasterPass, output); err != nil {
@@ -82,12 +82,12 @@ func TestHash(t *testing.T) {
 
 	// Test with Bad Params
 	_, err := Hash("password1234", "masterpassphrase", 0, ScryptParams{N: 2048, R: 16, P: 1}, DefaultParams)
-	if err != ErrScryptParamN {
+	if !errors.Is(err, ErrScryptParamN) {
 		t.Log("Expected Scrypt N failure for user params")
 		t.FailNow()
 	}
 	_, err = Hash("password1234", "masterpassphrase", 0, DefaultParams, ScryptParams{N: 2048, R: 16, P: 1})
-	if err != ErrScryptParamN {
+	if !errors.Is(err, ErrScryptParamN) {
 		t.Log("Expected Scrypt N failure for master params")
 		t.FailNow()
 	}
@@ -134,7 +134,7 @@ func TestGetParamsFromHash(t *testing.T) {
 
 	// Test with Bad Format
 	user, master, err = GetParams("secBoxv1$5DxIID0p4uz073qNngNsxYhXKPJITbjdvpjLju/XKbbzKDjdXVvgCSVbNIjCAg2QvA8O4mC+/fZpExJJx9rVpgxeL4xH16kN5/AGHtaa3kPNlP0tB5dJjDbFsJVr7u/ar9v4hzwQYhk=$xGvsvszfJDY=$32768$16$1$16384$8$1")
-	if err != ErrCiphertextFormat {
+	if !errors.Is(err, ErrCiphertextFormat) {
 		t.Log("Expected invalid format error")
 		t.FailNow()
 	}
@@ -199,14 +199,14 @@ func TestUpdateMaster(t *testing.T) {
 
 	// Test Bad Format Fail
 	_, err = UpdateMaster("masterpassphrase2", "masterpassphrase", 1, "secBoxv1$l8W69jygGur7sa0669mAJnIuYgjsbkx4wd+RdDzwIn2Z49FJurWkJDx2NA8g+ED9Nn6vGCLNFoHXSDIDeDBvJXouxs5zyX6mVozceVAVO7IadrL4+KKohV3MzoVlgodUYeNToOVB/5A=$4LZVjQ8P9pA=$32768$16$1$16384$8$1", DefaultParams)
-	if err != ErrCiphertextFormat {
+	if !errors.Is(err, ErrCiphertextFormat) {
 		t.Log("Expected Ciphertext format failure")
 		t.FailNow()
 	}
 
 	// Test Bad Params Fail
 	_, err = UpdateMaster("masterpassphrase2", "masterpassphrase", 1, "secBoxv1$0$l8W69jygGur7sa0669mAJnIuYgjsbkx4wd+RdDzwIn2Z49FJurWkJDx2NA8g+ED9Nn6vGCLNFoHXSDIDeDBvJXouxs5zyX6mVozceVAVO7IadrL4+KKohV3MzoVlgodUYeNToOVB/5A=$4LZVjQ8P9pA=$32768$16$1$16384$8$1", ScryptParams{N: 2048, R: 8, P: 1})
-	if err != ErrScryptParamN {
+	if !errors.Is(err, ErrScryptParamN) {
 		t.Log(err)
 		t.Log("Expected Scrypt N param failure")
 		t.FailNow()
@@ -214,7 +214,7 @@ func TestUpdateMaster(t *testing.T) {
 
 	// Test Bad Old Master passphrase, decrypt fail
 	_, err = UpdateMaster("masterpassphrase2", "incorrectmaster", 1, "secBoxv1$0$l8W69jygGur7sa0669mAJnIuYgjsbkx4wd+RdDzwIn2Z49FJurWkJDx2NA8g+ED9Nn6vGCLNFoHXSDIDeDBvJXouxs5zyX6mVozceVAVO7IadrL4+KKohV3MzoVlgodUYeNToOVB/5A=$4LZVjQ8P9pA=$32768$16$1$16384$8$1", DefaultParams)
-	if err != ErrSecretBoxDecryptFail {
+	if !errors.Is(err, ErrSecretBoxDecryptFail) {
 		t.Log(err)
 		t.Log("Expected decryption failure")
 		t.FailNow()
@@ -236,7 +236,7 @@ func TestUpdateMasterBadVersion(t *testing.T) {
 	}
 	// Update then re-verify
 	_, err = UpdateMaster("masterpassphrase2", "masterpassphrase", 0, output, DefaultParams)
-	if err != ErrInvalidVersionUpdate {
+	if !errors.Is(err, ErrInvalidVersionUpdate) {
 		t.Log("Expected Invalid Version update error")
 		t.FailNow()
 	}
@@ -244,13 +244,13 @@ func TestUpdateMasterBadVersion(t *testing.T) {
 func TestHashShortPassphrase(t *testing.T) {
 	// Errors should not be nil, fail if errors nil
 	_, err := Hash("pass", "masterpassphrase", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
-	if err != ErrPassphraseLength {
+	if !errors.Is(err, ErrPassphraseLength) {
 		t.Log("Expected Passphrase length failure")
 		t.FailNow()
 	}
 
 	_, err = Hash("password1234", "master", 0, ScryptParams{N: 32768, R: 16, P: 1}, DefaultParams)
-	if err != ErrPassphraseLength {
+	if !errors.Is(err, ErrPassphraseLength) {
 		t.Log("Expected Passphrase length failure")
 		t.FailNow()
 	}
@@ -267,13 +267,13 @@ func TestVerify(t *testing.T) {
 func TestVerifyV1(t *testing.T) {
 	// Fail Length
 	err := verifyV1("password1234", "masterpassphrase", []string{"secBoxv1", "Qk09Tgzi2w+z9mtPiwe6uLWPXMY8WQyI3oC7Sqz11PMcRzvqrOhd70fdBXEUmOeM91z2MytB9Lt4VQzjOs21KTYqMx9FwUR2qDa38fmQhT6pLOJCaptpMzgYLC1fvbq4suuW9XpB7RE=", "2ZVcHyy/p9Q=", "32768", "16", "1", "16384", "8", "1"})
-	if err != ErrCiphertextFormat {
+	if !errors.Is(err, ErrCiphertextFormat) {
 		t.Log("Expected Format Failure")
 		t.FailNow()
 	}
 	// Fail ciphertext version check
 	err = verifyV1("password1234", "masterpassphrase", []string{"secBoxv0", "0", "Qk09Tgzi2w+z9mtPiwe6uLWPXMY8WQyI3oC7Sqz11PMcRzvqrOhd70fdBXEUmOeM91z2MytB9Lt4VQzjOs21KTYqMx9FwUR2qDa38fmQhT6pLOJCaptpMzgYLC1fvbq4suuW9XpB7RE=", "2ZVcHyy/p9Q=", "32768", "16", "1", "16384", "8", "1"})
-	if err != ErrCiphertextVer {
+	if !errors.Is(err, ErrCiphertextVer) {
 		t.Log("Expect Version Failure")
 		t.FailNow()
 	}
