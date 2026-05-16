@@ -14,7 +14,7 @@ var (
 	// ErrPassphraseLength indicates supplied passphrase is not at least MinLength
 	ErrPassphraseLength = errors.New("passphrase must be at least MinLength")
 	// ErrSecretBoxDecryptFail indicates SecretBox decryption could not be completed
-	ErrSecretBoxDecryptFail = errors.New("secretBox decryption failed")
+	ErrSecretBoxDecryptFail = errors.New("secretbox decryption failed")
 	// ErrScryptParamN indicates ScryptParams:N out of acceptable range
 	ErrScryptParamN = errors.New("given Scrypt (N) cost factor out of acceptable range")
 	// ErrScryptParamR indicates ScryptParams:r out of acceptable range
