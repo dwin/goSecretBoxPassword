@@ -1,1 +1,6 @@
 .DS_Store
+
+# Test/build artifacts
+coverage.out
+*.test
+example/example
